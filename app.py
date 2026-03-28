@@ -3,11 +3,12 @@ import cv2
 from ultralytics import YOLO
 from PIL import Image
 import tempfile
+from streamlit_webrtc import webrtc_streamer, VideoTransformerBase
 
-# Load YOLO model (fast and lightweight)
+# Load YOLO model
 model = YOLO("yolov8n.pt")
 
-st.title("AI Object Detection System")
+st.title("YOLOv8 Object Detection")
 
 option = st.sidebar.selectbox(
     "Select Detection Mode",
@@ -18,9 +19,9 @@ option = st.sidebar.selectbox(
 
 if option == "Image Detection":
 
-    uploaded_file = st.file_uploader("Upload Image")
+    uploaded_file = st.file_uploader("Upload Image", type=["jpg", "png", "jpeg"])
 
-    if uploaded_file:
+    if uploaded_file is not None:
 
         image = Image.open(uploaded_file)
 
@@ -35,7 +36,7 @@ if option == "Image Detection":
 
 elif option == "Video Detection":
 
-    uploaded_video = st.file_uploader("Upload Video")
+    uploaded_video = st.file_uploader("Upload Video", type=["mp4", "mov", "avi"])
 
     if uploaded_video:
 
@@ -61,7 +62,6 @@ elif option == "Video Detection":
             if frame_count % 5 != 0:
                 continue
 
-            # Resize frame for faster inference
             frame = cv2.resize(frame, (640, 360))
 
             results = model(frame)
@@ -77,23 +77,23 @@ elif option == "Video Detection":
 
 elif option == "Webcam Detection":
 
-    cap = cv2.VideoCapture(0)
+    st.write("Turn on your webcam for live detection")
 
-    stframe = st.empty()
+    class VideoTransformer(VideoTransformerBase):
 
-    while cap.isOpened():
+        def transform(self, frame):
 
-        ret, frame = cap.read()
+            img = frame.to_ndarray(format="bgr24")
 
-        if not ret:
-            break
+            img = cv2.resize(img, (640, 360))
 
-        frame = cv2.resize(frame, (640, 360))
+            results = model(img)
 
-        results = model(frame)
+            img = results[0].plot()
 
-        frame = results[0].plot()
+            return img
 
-        stframe.image(frame, channels="BGR")
-
-    cap.release()
+    webrtc_streamer(
+        key="yolo-webcam",
+        video_transformer_factory=VideoTransformer
+    )
